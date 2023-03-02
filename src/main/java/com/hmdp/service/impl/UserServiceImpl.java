@@ -159,7 +159,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 CopyOptions.create()
                         .setIgnoreNullValue(true)
                         .setFieldValueEditor((fieldName,fieldValue) -> fieldValue.toString() ));
-        //存储
+        //存储为hash
         String tokenKey = LOGIN_USER_TOKEN + token;
         stringRedisTemplate.opsForHash().putAll(tokenKey,userMap);
         //给token设置有效期(要在拦截器中更新token有效期，防止在使用中过期)
