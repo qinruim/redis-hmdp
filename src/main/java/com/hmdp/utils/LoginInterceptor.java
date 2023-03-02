@@ -1,35 +1,20 @@
 package com.hmdp.utils;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.StrUtil;
-import com.hmdp.dto.UserDTO;
-import com.hmdp.entity.User;
-import org.springframework.data.redis.core.StringRedisTemplate;
+
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+
 
 /**
  * 登陆拦截器 校验登陆状态
+ * @author qrpop
  */
 public class LoginInterceptor implements HandlerInterceptor {
-    /**
-     * LoginInterceptor不是spring管理的对象 不能用@Resource和@Autowired进行依赖注入
-     * 要在使用LoginInterceptor的MvcConfig类中手动注入
-     */
-    private StringRedisTemplate stringRedisTemplate;
 
-    public LoginInterceptor(StringRedisTemplate stringRedisTemplate) {
-        this.stringRedisTemplate = stringRedisTemplate;
-    }
-    /**
-     * 基于seeion拦截
-     * 前置 在最前面执行
-     */
+//    基于session拦截
+//    前置 在最前面执行
 //    @Override
 //    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
 //        //1.获取session
@@ -49,43 +34,19 @@ public class LoginInterceptor implements HandlerInterceptor {
 //    }
 
     /**
-     * 基于redis拦截  要更新token
-     * @param request
-     * @param response
-     * @param handler
-     * @return
-     * @throws Exception
+     * token更新，用户数据保存到ThreadLocal已经在RefreshTokenInterceptor中完成
+     * 这个拦截其只需要做登陆拦截
      */
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        //1.获取请求头中的token
-        String token = request.getHeader("authorization");
-        if (StrUtil.isBlank(token)) {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler){
+        //1.判断是否需要拦截（ThreadLocal中是否有用户）
+        if (UserHolder.getUser() == null){
+            //没有,需要拦截
             response.setStatus(401);
             return false;
         }
-        //2.基于token获取redis中的用户信息
-        String tokenKey = RedisConstants.LOGIN_USER_TOKEN + token;
-        Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(tokenKey);
-        //3.判断用户是否存在(entries方法会做null判断，这里不用判断null)
-        if (userMap.isEmpty()) {
-            response.setStatus(401);
-            return false;
-        }
-        //5.存在则将查询到的用户信息转为UserDto对象  存储到ThreadLocal
-        UserDTO userDTO = BeanUtil.fillBeanWithMap(userMap, new UserDTO(), false);
-        UserHolder.saveUser(userDTO);
-        //6.刷新token有效期 放行
-        stringRedisTemplate.expire(tokenKey,RedisConstants.LOGIN_USER_TTL, TimeUnit.MINUTES);
         return true;
     }
 
-    /**
-     * 前端渲染之后执行
-     */
-    @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        //移除用户。避免内存泄漏
-        UserHolder.removeUser();
-    }
+
 }
